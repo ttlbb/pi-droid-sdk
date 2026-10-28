@@ -47,4 +47,15 @@ describe("buildDroidPrompt", () => {
 		expect(prompt.text).not.toContain("- read: Read files");
 		expect(prompt.text).not.toContain("System: ");
 	});
+
+	it("restates pi's default identity sentence without the wording Factory blocks", () => {
+		const identity = "You are an expert coding assistant operating inside pi, a coding agent harness.";
+		const context = normalizeContext({
+			systemPrompt: `${identity} You help users by reading files.`,
+			messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
+		});
+		const prompt = buildDroidPrompt(context);
+		expect(prompt.text).not.toContain(identity);
+		expect(prompt.text).toContain("Act as an expert coding assistant. You help users by reading files.");
+	});
 });
