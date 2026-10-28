@@ -156,6 +156,8 @@ last turn: gpt-5.5 at 21:14
 
 - `/droid-usage` 只统计本 pi 会话内已完成的轮次，不读取 Droid 历史会话，也不包含 Factory 账户额度（5 小时/每周限额）。
 - fallback 模型目录是仓库内维护的快照（`src/droid-fallback-models.generated.ts`），需要按 https://docs.factory.ai/models 手工更新。
+- 各模型的上下文长度来自 `src/droid-context-windows.generated.ts`（Factory 只通过 `getContextStats()` 逐模型返回，`availableModels` 里没有）。表里没有的新模型会在发现时实测一次；实测失败则按 131K 保守值处理并在启动时提示。整表刷新：`npm run refresh:droid-context-windows`（需要 Factory key 与 PATH 上的 `droid`）。
+- 输出上限（`maxTokens`）仍是固定 16.4K，SDK 未提供逐模型来源。
 - Droid 原生工具与 pi 内置工具同时存在；默认只把非重叠的 pi 工具暴露给 Droid，避免模型混用两套同名工具。
 
 ## 开发

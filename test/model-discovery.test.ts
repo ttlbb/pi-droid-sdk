@@ -19,6 +19,8 @@ vi.mock("@factory/droid-sdk", async (importOriginal) => {
 
 import { createSession } from "@factory/droid-sdk";
 import { ReasoningEffort } from "@factory/droid-sdk";
+import { __testUtils as contextWindowTestUtils } from "../src/droid-context-window.js";
+import { DROID_DEFAULT_CONTEXT_WINDOW } from "../src/droid-context-window.js";
 
 const mockedCreateSession = vi.mocked(createSession);
 
@@ -40,6 +42,7 @@ describe("discoverModels", () => {
 		process.env.PI_CODING_AGENT_DIR = tmpAgentDir;
 		process.argv = ["node", "vitest"];
 		__testUtils.clearMetadata();
+		contextWindowTestUtils.clearProbedContextWindows();
 	});
 
 	afterEach(() => {
@@ -53,6 +56,12 @@ describe("discoverModels", () => {
 		expect(models.some((model) => model.id === "kimi-k2.5")).toBe(true);
 		expect(models.some((model) => model.id === "glm-5.1")).toBe(true);
 		expect(mockedCreateSession).not.toHaveBeenCalled();
+	});
+
+	it("takes fallback model context windows from the bundled snapshot", async () => {
+		const models = await discoverModels();
+		expect(models.find((model) => model.id === "claude-sonnet-4-6")?.contextWindow).toBe(931_000);
+		expect(models.find((model) => model.id === "kimi-k2.5")?.contextWindow).toBe(256_000);
 	});
 
 	it("discovers live models when API key is available", async () => {
@@ -76,9 +85,67 @@ describe("discoverModels", () => {
 
 		const models = await discoverModels();
 		expect(models).toEqual([
-			expect.objectContaining({ id: "kimi-k2.5", name: "Droid Core (Kimi K2.5)" }),
+			expect.objectContaining({ id: "kimi-k2.5", name: "Droid Core (Kimi K2.5)", contextWindow: 256_000 }),
 		]);
 		expect(mockedCreateSession).toHaveBeenCalled();
+	});
+
+	it("probes the context window of a live model that the snapshot does not know", async () => {
+		writeStoredFactoryApiKey("factory-test-key");
+		const close = vi.fn(async () => {});
+		mockedCreateSession
+			.mockResolvedValueOnce({
+				initResult: {
+					availableModels: [
+						{
+							id: "brand-new-model",
+							displayName: "Brand New",
+							shortDisplayName: "Brand New",
+							modelProvider: "factory",
+							supportedReasoningEfforts: [ReasoningEffort.High],
+							defaultReasoningEffort: ReasoningEffort.High,
+							isCustom: false,
+						},
+					],
+				},
+				close,
+			} as never)
+			.mockResolvedValueOnce({
+				getContextStats: async () => ({ limit: 555_000 }),
+				close,
+			} as never);
+
+		const models = await discoverModels();
+		expect(models[0]?.contextWindow).toBe(555_000);
+	});
+
+	it("reports live models it could not probe and keeps the conservative window", async () => {
+		writeStoredFactoryApiKey("factory-test-key");
+		const unknownModelIds: string[][] = [];
+		mockedCreateSession
+			.mockResolvedValueOnce({
+				initResult: {
+					availableModels: [
+						{
+							id: "unprobeable-model",
+							displayName: "Unprobeable",
+							shortDisplayName: "Unprobeable",
+							modelProvider: "factory",
+							supportedReasoningEfforts: [ReasoningEffort.High],
+							defaultReasoningEffort: ReasoningEffort.High,
+							isCustom: false,
+						},
+					],
+				},
+				close: vi.fn(async () => {}),
+			} as never)
+			.mockRejectedValue(new Error("probe failed"));
+
+		const models = await discoverModels({
+			onUnknownContextWindow: (modelIds) => unknownModelIds.push(modelIds),
+		});
+		expect(models[0]?.contextWindow).toBe(DROID_DEFAULT_CONTEXT_WINDOW);
+		expect(unknownModelIds).toEqual([["unprobeable-model"]]);
 	});
 });
 

@@ -4,10 +4,14 @@ import { readStoredCredential, type ProviderModelConfig } from "@earendil-works/
 import type { ModelThinkingLevel, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import { ReasoningEffort } from "@factory/droid-sdk";
 import { FALLBACK_MODEL_ITEMS } from "./droid-fallback-models.generated.js";
+import {
+	DROID_DEFAULT_CONTEXT_WINDOW,
+	getKnownDroidContextWindow,
+	resolveDroidContextWindows,
+} from "./droid-context-window.js";
 
 const FACTORY_PROVIDER_ID = "factory";
 const FACTORY_API_KEY_ENV_VAR = "FACTORY_API_KEY";
-const FALLBACK_CONTEXT_WINDOW = 200_000;
 const FALLBACK_MAX_TOKENS = 16_384;
 const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 const AUTH_SETUP_HINT = "/login (Use an API key -> Factory), FACTORY_API_KEY, or --api-key";
@@ -24,6 +28,8 @@ export interface DroidModelFallbackIssue {
 
 export interface DiscoverModelsOptions {
 	onFallback?: (issue: DroidModelFallbackIssue) => void;
+	/** Models whose context window is unknown, so they hold {@link DROID_DEFAULT_CONTEXT_WINDOW}. */
+	onUnknownContextWindow?: (modelIds: string[]) => void;
 }
 
 export interface DroidModelMetadata {
@@ -131,7 +137,7 @@ function buildThinkingLevelMap(supported: ReasoningEffort[]): ThinkingLevelMap |
 	};
 }
 
-function toMetadata(item: AvailableModelConfig): DroidModelMetadata {
+function toMetadata(item: AvailableModelConfig, contextWindow: number): DroidModelMetadata {
 	const baseModelId = item.modelId ?? item.id;
 	const thinkingLevelMap = buildThinkingLevelMap(item.supportedReasoningEfforts);
 	return {
@@ -142,7 +148,7 @@ function toMetadata(item: AvailableModelConfig): DroidModelMetadata {
 		...(thinkingLevelMap ? { thinkingLevelMap } : {}),
 		defaultReasoningEffort: item.defaultReasoningEffort,
 		supportedReasoningEfforts: item.supportedReasoningEfforts,
-		contextWindow: FALLBACK_CONTEXT_WINDOW,
+		contextWindow,
 		noImageSupport: item.noImageSupport === true,
 		isCustom: item.isCustom === true,
 		...(item.tokenMultiplier !== undefined ? { tokenMultiplier: item.tokenMultiplier } : {}),
@@ -184,7 +190,7 @@ function fallbackMetadataFromSnapshot(): DroidModelMetadata[] {
 		...(item.thinkingLevelMap ? { thinkingLevelMap: item.thinkingLevelMap } : {}),
 		defaultReasoningEffort: item.defaultReasoningEffort,
 		supportedReasoningEfforts: item.supportedReasoningEfforts,
-		contextWindow: FALLBACK_CONTEXT_WINDOW,
+		contextWindow: getKnownDroidContextWindow(item.id) ?? DROID_DEFAULT_CONTEXT_WINDOW,
 		noImageSupport: item.noImageSupport === true,
 		isCustom: item.isCustom === true,
 		...(item.tokenMultiplier !== undefined ? { tokenMultiplier: item.tokenMultiplier } : {}),
@@ -253,19 +259,34 @@ export async function discoverModels(options: DiscoverModelsOptions = {}): Promi
 			cwd: process.cwd(),
 			env: { ...process.env, FACTORY_API_KEY: apiKey },
 		});
+		let available: AvailableModelConfig[];
 		try {
-			const available = session.initResult.availableModels ?? [];
-			if (available.length === 0) {
-				options.onFallback?.({
-					reason: "empty-model-list",
-					message: `Factory returned an empty model list. Using bundled fallback models. ${CATALOG_REFRESH_HINT}`,
-				});
-				return registerMetadata(fallbackMetadataFromSnapshot());
-			}
-			return registerMetadata(available.map(toMetadata));
+			available = session.initResult.availableModels ?? [];
 		} finally {
+			// Closed before context probing, which opens its own short sessions per unknown model.
 			await session.close();
 		}
+		if (available.length === 0) {
+			options.onFallback?.({
+				reason: "empty-model-list",
+				message: `Factory returned an empty model list. Using bundled fallback models. ${CATALOG_REFRESH_HINT}`,
+			});
+			return registerMetadata(fallbackMetadataFromSnapshot());
+		}
+
+		const modelIds = available.map((item) => item.modelId ?? item.id);
+		const contextWindows = await resolveDroidContextWindows(modelIds, { apiKey });
+		if (contextWindows.unknownModelIds.length > 0) {
+			options.onUnknownContextWindow?.(contextWindows.unknownModelIds);
+		}
+		return registerMetadata(
+			available.map((item) =>
+				toMetadata(
+					item,
+					contextWindows.windows.get(item.modelId ?? item.id) ?? DROID_DEFAULT_CONTEXT_WINDOW,
+				),
+			),
+		);
 	} catch (error) {
 		options.onFallback?.(discoveryFailedIssue(error));
 		return registerMetadata(fallbackMetadataFromSnapshot());
