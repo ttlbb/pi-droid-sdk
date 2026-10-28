@@ -6,6 +6,8 @@ Use this extension if you want Factory's full model catalog inside pi while keep
 
 ## Quick start
 
+Full usage guide (Chinese): [USAGE.md](USAGE.md).
+
 1. Install from GitHub (not published to npm yet):
 
 ```bash
