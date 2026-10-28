@@ -24,6 +24,7 @@ import {
 	type DroidPiToolBridgeRun,
 } from "./droid-pi-tool-bridge.js";
 import { getDroidSessionCwd } from "./droid-session-cwd.js";
+import { recordDroidTurnUsage } from "./droid-usage.js";
 
 const MISSING_API_KEY_MESSAGE =
 	"Factory API key required. Use /login (Use an API key -> Factory), set FACTORY_API_KEY, or pass --api-key.";
@@ -194,6 +195,7 @@ function createTurnEmitState(): TurnEmitState {
 function processStreamEvent(
 	stream: AssistantMessageEventStream,
 	partial: AssistantMessage,
+	model: Model<Api>,
 	run: DroidLiveRun,
 	state: TurnEmitState,
 	msg: DroidStreamMessage,
@@ -260,6 +262,8 @@ function processStreamEvent(
 				cacheReadTokens: msg.tokenUsage.cacheReadTokens,
 				cacheCreationTokens: msg.tokenUsage.cacheCreationTokens,
 			};
+			// Only completed turns are recorded: an interrupted turn has no authoritative total.
+			recordDroidTurnUsage({ modelId: model.id, ...msg.tokenUsage });
 		}
 		return "done";
 	}
@@ -304,7 +308,7 @@ async function pumpLiveRun(
 		if (next.done) break;
 
 		await emitProviderStreamEvent(next.value, model, options);
-		const status = processStreamEvent(stream, partial, run, state, next.value);
+		const status = processStreamEvent(stream, partial, model, run, state, next.value);
 		if (status === "done") {
 			if (state.thinkingContentIndex >= 0) {
 				const block = partial.content[state.thinkingContentIndex];

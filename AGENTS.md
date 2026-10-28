@@ -13,6 +13,7 @@ pi provider extension that registers Factory Droid models under the `factory` pr
 - `src/droid-question-tool.ts` — bridge-exposed `droid_ask_question` pi UI tool + `askUserHandler` wiring.
 - `src/droid-permissions.ts` — `permissionHandler` wiring for Droid tool confirmations.
 - `src/droid-session-cwd.ts` — session cwd tracking for Droid runs.
+- `src/droid-usage.ts` — per-model Droid token usage tracker + `/droid-usage` command.
 - `src/context.ts` — pi message → Droid prompt conversion.
 - `test/**/*.test.ts` — Vitest coverage.
 

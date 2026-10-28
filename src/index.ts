@@ -3,6 +3,7 @@ import { discoverModels, type DroidModelFallbackIssue } from "./model-discovery.
 import { registerDroidPiToolBridge } from "./droid-pi-tool-bridge.js";
 import { registerDroidQuestionTool } from "./droid-question-tool.js";
 import { registerDroidSessionCwd } from "./droid-session-cwd.js";
+import { registerDroidUsageCommand } from "./droid-usage.js";
 import { setDroidAskUserUiContext } from "./droid-ask-user.js";
 import { streamDroid } from "./droid-provider.js";
 
@@ -11,13 +12,14 @@ type DroidExtensionApi =
 	& {
 		registerCommand(name: string, options: {
 			description?: string;
-			handler: (args: string, ctx: Pick<ExtensionContext, "hasUI"> & { ui: Pick<ExtensionContext["ui"], "notify"> }) => Promise<void> | void;
+			handler: (args: string, ctx: Pick<ExtensionContext, "hasUI"> & { ui: Pick<ExtensionContext["ui"], "notify" | "setWidget"> }) => Promise<void> | void;
 		}): void;
 		on(event: "session_start", handler: (event: unknown, ctx: ExtensionContext) => Promise<void> | void): void;
 	}
 	& Parameters<typeof registerDroidSessionCwd>[0]
 	& Parameters<typeof registerDroidQuestionTool>[0]
-	& Parameters<typeof registerDroidPiToolBridge>[0];
+	& Parameters<typeof registerDroidPiToolBridge>[0]
+	& Parameters<typeof registerDroidUsageCommand>[0];
 
 function createDroidProviderConfig(models: ProviderModelConfig[]): ProviderConfig {
 	return {
@@ -41,6 +43,7 @@ export default async function (pi: DroidExtensionApi) {
 	registerDroidSessionCwd(pi);
 	registerDroidQuestionTool(pi);
 	registerDroidPiToolBridge(pi);
+	registerDroidUsageCommand(pi);
 
 	pi.on("session_start", (_event, ctx) => {
 		setDroidAskUserUiContext({ hasUI: ctx.hasUI, ui: ctx.ui });

@@ -57,6 +57,14 @@ When Droid exposes reasoning effort for a model, pi's native thinking controls m
 
 Core models like `kimi-k2.5` typically support `off` and `high`. Models whose top effort is Droid `Max` expose it as pi's `max` level; models that top out at `ExtraHigh` leave `max` unsupported.
 
+## Usage
+
+```text
+/droid-usage
+```
+
+Shows Factory Droid token usage accumulated in the current pi session: per-model turns plus input, output, cache-read, cache-write, and thinking tokens, with a total row. Usage is counted from Droid's own turn-complete token reports, so it covers only turns that finished; interrupted turns are not counted and the counters reset on the next `session_start`.
+
 ## Pi tool bridge
 
 Like `pi-cursor-sdk`, active pi tools are exposed to Droid via `createSdkMcpServer` under `pi__*` MCP names. Bridged calls execute through normal pi tool flow.
