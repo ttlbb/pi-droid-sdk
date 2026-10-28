@@ -1,4 +1,4 @@
-import type { Context, Message, ToolCall } from "@earendil-works/pi-ai";
+import { getCurrentSystemPrompt, type Message, type ToolCall, type TranscriptContext } from "@earendil-works/pi-ai";
 import { getDroidPiBridgeContractText } from "./droid-bridge-contract.js";
 
 export interface DroidPrompt {
@@ -64,8 +64,10 @@ function formatToolCall(toolCall: ToolCall): string {
 
 function sanitizeSystemPromptForDroid(systemPrompt: string): string {
 	let sanitized = systemPrompt;
+	// pi 1.x renders the tool catalog as a <tools> section and no longer includes it in
+	// context.systemPrompt; Droid must not be told about tools it cannot call.
 	sanitized = sanitized.replace(
-		/Available tools:\n[\s\S]*?\n\nIn addition to the tools above, you may have access to other custom tools depending on the project\.\n\n/g,
+		/<tools>[\s\S]*?<\/tools>\n?/,
 		"Pi tool catalog omitted: Droid can call only Droid SDK / bridged MCP tools exposed in this run.\n\n",
 	);
 	sanitized = sanitized.replace(
@@ -95,6 +97,9 @@ function formatMessage(msg: Message): string | undefined {
 			const label = msg.isError ? "Tool error" : "Tool result";
 			return `${label} (${msg.toolName}, call ${msg.toolCallId}): ${text}`;
 		}
+		case "system":
+			// The current system prompt is rendered once from the whole transcript below.
+			return undefined;
 	}
 }
 
@@ -105,12 +110,13 @@ function getLatestUserMessageIndex(messages: Message[]): number {
 	return -1;
 }
 
-export function buildDroidPrompt(context: Context, options: DroidPromptOptions = {}): DroidPrompt {
+export function buildDroidPrompt(context: TranscriptContext, options: DroidPromptOptions = {}): DroidPrompt {
 	const images = extractLatestImages(context.messages);
 	const sections: string[] = [];
 
-	if (context.systemPrompt?.trim()) {
-		sections.push(sanitizeSystemPromptForDroid(context.systemPrompt.trim()));
+	const systemPrompt = getCurrentSystemPrompt(context.messages).trim();
+	if (systemPrompt) {
+		sections.push(sanitizeSystemPromptForDroid(systemPrompt));
 	}
 
 	sections.push(getDroidPiBridgeContractText());

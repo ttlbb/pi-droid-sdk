@@ -52,10 +52,10 @@ Fallback models ship in-repo when auth or discovery fails. Refresh live catalog 
 When Droid exposes reasoning effort for a model, pi's native thinking controls map through:
 
 - Shift+Tab in the TUI
-- `--thinking off|low|medium|high|xhigh`
+- `--thinking off|minimal|low|medium|high|xhigh|max`
 - `:medium` model suffix where supported
 
-Core models like `kimi-k2.5` typically support `off` and `high`.
+Core models like `kimi-k2.5` typically support `off` and `high`. Models whose top effort is Droid `Max` expose it as pi's `max` level; models that top out at `ExtraHigh` leave `max` unsupported.
 
 ## Pi tool bridge
 
@@ -76,8 +76,9 @@ Env:
 ## Requirements
 
 - Node >= 22.19
+- pi >= 1.4.0 (`@earendil-works/pi-coding-agent`, `pi-ai`, `pi-tui`)
 - `droid` on PATH (SDK spawns it)
-- `FACTORY_API_KEY` or pi stored auth for provider `factory`
+- `FACTORY_API_KEY`, a `--api-key`, or pi stored auth for provider `factory`
 
 ## Development
 

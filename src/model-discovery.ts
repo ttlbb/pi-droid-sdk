@@ -1,6 +1,6 @@
 import { createSession } from "@factory/droid-sdk";
 import type { AvailableModelConfig } from "@factory/droid-sdk";
-import { AuthStorage, type ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { readStoredCredential, type ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import type { ModelThinkingLevel, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import { ReasoningEffort } from "@factory/droid-sdk";
 import { FALLBACK_MODEL_ITEMS } from "./droid-fallback-models.generated.js";
@@ -67,9 +67,12 @@ function normalizeApiKey(value: string | undefined): string | undefined {
 	return trimmed;
 }
 
-async function getStoredFactoryApiKey(): Promise<string | undefined> {
+// pi 1.x no longer exports AuthStorage to extensions; readStoredCredential() is the
+// supported one-off read of auth.json and honors PI_CODING_AGENT_DIR.
+function getStoredFactoryApiKey(): string | undefined {
 	try {
-		return normalizeApiKey(await AuthStorage.create().getApiKey(FACTORY_PROVIDER_ID, { includeFallback: false }));
+		const credential = readStoredCredential(FACTORY_PROVIDER_ID);
+		return credential?.type === "api_key" ? normalizeApiKey(credential.key) : undefined;
 	} catch {
 		return undefined;
 	}
@@ -79,7 +82,7 @@ export async function getDiscoveryApiKey(): Promise<string | undefined> {
 	const cliApiKey = normalizeApiKey(getCliApiKeyFromArgv());
 	if (cliApiKey) return cliApiKey;
 
-	const storedApiKey = await getStoredFactoryApiKey();
+	const storedApiKey = getStoredFactoryApiKey();
 	if (storedApiKey) return storedApiKey;
 
 	return normalizeApiKey(process.env.FACTORY_API_KEY);
@@ -101,7 +104,7 @@ function mapReasoningEffortToPiLevel(effort: ReasoningEffort): ModelThinkingLeve
 		case ReasoningEffort.ExtraHigh:
 			return "xhigh";
 		case ReasoningEffort.Max:
-			return "xhigh";
+			return "max";
 		default:
 			return null;
 	}
@@ -114,6 +117,9 @@ function buildThinkingLevelMap(supported: ReasoningEffort[]): ThinkingLevelMap |
 		if (level) map[level] = effort;
 	}
 	if (Object.keys(map).length === 0) return undefined;
+	// pi 1.4 added the "max" level. Models whose top effort is Max still accept the
+	// lower "xhigh" request, so keep that level reachable when ExtraHigh is absent.
+	if (map.xhigh === undefined && map.max !== undefined) map.xhigh = map.max;
 	return {
 		off: map.off ?? null,
 		minimal: map.minimal ?? null,
@@ -121,6 +127,7 @@ function buildThinkingLevelMap(supported: ReasoningEffort[]): ThinkingLevelMap |
 		medium: map.medium ?? null,
 		high: map.high ?? null,
 		xhigh: map.xhigh ?? null,
+		max: map.max ?? null,
 	};
 }
 

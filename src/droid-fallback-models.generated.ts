@@ -30,6 +30,7 @@ const claudeReasoning = {
 		medium: ReasoningEffort.Medium,
 		high: ReasoningEffort.High,
 		xhigh: ReasoningEffort.Max,
+		max: ReasoningEffort.Max,
 	} satisfies ThinkingLevelMap,
 };
 
@@ -49,6 +50,7 @@ const gptReasoning = {
 		medium: ReasoningEffort.Medium,
 		high: ReasoningEffort.High,
 		xhigh: ReasoningEffort.ExtraHigh,
+		max: null,
 	} satisfies ThinkingLevelMap,
 };
 
@@ -63,6 +65,7 @@ const coreReasoning = {
 		medium: null,
 		high: ReasoningEffort.High,
 		xhigh: null,
+		max: null,
 	} satisfies ThinkingLevelMap,
 };
 
@@ -85,14 +88,14 @@ export const FALLBACK_MODEL_ITEMS: DroidFallbackModelItem[] = [
 	{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini", ...gptReasoning, defaultReasoningEffort: ReasoningEffort.High, tokenMultiplier: 0.3 },
 	{ id: "gpt-5.3-codex", displayName: "GPT-5.3-Codex", ...gptReasoning, tokenMultiplier: 0.7 },
 	{ id: "gpt-5.3-codex-fast", displayName: "GPT-5.3-Codex Fast", ...gptReasoning, tokenMultiplier: 1.4 },
-	{ id: "gpt-5.2", displayName: "GPT-5.2", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Off, ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High, ReasoningEffort.ExtraHigh], defaultReasoningEffort: ReasoningEffort.Low, thinkingLevelMap: { off: ReasoningEffort.Off, minimal: null, low: ReasoningEffort.Low, medium: ReasoningEffort.Medium, high: ReasoningEffort.High, xhigh: ReasoningEffort.ExtraHigh }, tokenMultiplier: 0.7 },
+	{ id: "gpt-5.2", displayName: "GPT-5.2", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Off, ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High, ReasoningEffort.ExtraHigh], defaultReasoningEffort: ReasoningEffort.Low, thinkingLevelMap: { off: ReasoningEffort.Off, minimal: null, low: ReasoningEffort.Low, medium: ReasoningEffort.Medium, high: ReasoningEffort.High, xhigh: ReasoningEffort.ExtraHigh, max: null }, tokenMultiplier: 0.7 },
 	{ id: "gpt-5.2-codex", displayName: "GPT-5.2-Codex", ...gptReasoning, tokenMultiplier: 0.7 },
-	{ id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: null, minimal: null, low: ReasoningEffort.Low, medium: ReasoningEffort.Medium, high: ReasoningEffort.High, xhigh: null }, tokenMultiplier: 0.8 },
-	{ id: "gemini-3-flash-preview", displayName: "Gemini 3 Flash", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Minimal, ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: null, minimal: ReasoningEffort.Minimal, low: ReasoningEffort.Low, medium: ReasoningEffort.Medium, high: ReasoningEffort.High, xhigh: null }, tokenMultiplier: 0.2 },
+	{ id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: null, minimal: null, low: ReasoningEffort.Low, medium: ReasoningEffort.Medium, high: ReasoningEffort.High, xhigh: null, max: null }, tokenMultiplier: 0.8 },
+	{ id: "gemini-3-flash-preview", displayName: "Gemini 3 Flash", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Minimal, ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: null, minimal: ReasoningEffort.Minimal, low: ReasoningEffort.Low, medium: ReasoningEffort.Medium, high: ReasoningEffort.High, xhigh: null, max: null }, tokenMultiplier: 0.2 },
 	{ id: "glm-5.1", displayName: "Droid Core (GLM-5.1)", ...coreReasoning, tokenMultiplier: 0.55 },
 	{ id: "kimi-k2.6", displayName: "Droid Core (Kimi K2.6)", ...coreReasoning, tokenMultiplier: 0.4 },
 	{ id: "kimi-k2.5", displayName: "Droid Core (Kimi K2.5)", ...coreReasoning, tokenMultiplier: 0.25 },
-	{ id: "deepseek-v4-pro", displayName: "Droid Core (DeepSeek V4 Pro)", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Off, ReasoningEffort.High, ReasoningEffort.Max], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: ReasoningEffort.Off, minimal: null, low: null, medium: null, high: ReasoningEffort.High, xhigh: ReasoningEffort.Max }, tokenMultiplier: 0.55 },
-	{ id: "minimax-m2.7", displayName: "Droid Core (MiniMax M2.7)", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.High], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: null, minimal: null, low: null, medium: null, high: ReasoningEffort.High, xhigh: null }, tokenMultiplier: 0.12 },
-	{ id: "minimax-m2.5", displayName: "Droid Core (MiniMax M2.5)", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: null, minimal: null, low: ReasoningEffort.Low, medium: ReasoningEffort.Medium, high: ReasoningEffort.High, xhigh: null }, tokenMultiplier: 0.12 },
+	{ id: "deepseek-v4-pro", displayName: "Droid Core (DeepSeek V4 Pro)", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Off, ReasoningEffort.High, ReasoningEffort.Max], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: ReasoningEffort.Off, minimal: null, low: null, medium: null, high: ReasoningEffort.High, xhigh: ReasoningEffort.Max, max: ReasoningEffort.Max }, tokenMultiplier: 0.55 },
+	{ id: "minimax-m2.7", displayName: "Droid Core (MiniMax M2.7)", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.High], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: null, minimal: null, low: null, medium: null, high: ReasoningEffort.High, xhigh: null, max: null }, tokenMultiplier: 0.12 },
+	{ id: "minimax-m2.5", displayName: "Droid Core (MiniMax M2.5)", supportsReasoning: true, supportedReasoningEfforts: [ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High], defaultReasoningEffort: ReasoningEffort.High, thinkingLevelMap: { off: null, minimal: null, low: ReasoningEffort.Low, medium: ReasoningEffort.Medium, high: ReasoningEffort.High, xhigh: null, max: null }, tokenMultiplier: 0.12 },
 ];

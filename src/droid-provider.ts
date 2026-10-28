@@ -1,12 +1,13 @@
 import {
 	type Api,
 	type AssistantMessageEventStream,
-	type Context,
+	type JsonObject,
 	createAssistantMessageEventStream,
 	type Model,
 	type SimpleStreamOptions,
 	type AssistantMessage,
 	type ToolResultMessage,
+	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import {
 	DroidMessageType,
@@ -85,7 +86,7 @@ function resolveFactoryApiKey(optionsApiKey?: string): string | undefined {
 	return undefined;
 }
 
-function getPendingLiveRun(context: Context): DroidLiveRun | undefined {
+function getPendingLiveRun(context: TranscriptContext): DroidLiveRun | undefined {
 	for (let index = context.messages.length - 1; index >= 0; index -= 1) {
 		const message = context.messages[index];
 		if (message.role !== "toolResult") break;
@@ -140,6 +141,16 @@ async function disposeLiveRun(run: DroidLiveRun): Promise<void> {
 	notifyRun(run);
 }
 
+function toToolCallArguments(args: Record<string, unknown>): JsonObject | undefined {
+	try {
+		const parsed: unknown = JSON.parse(JSON.stringify(args));
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+		return parsed as JsonObject;
+	} catch {
+		return undefined;
+	}
+}
+
 function emitBridgeToolUseTurn(
 	stream: AssistantMessageEventStream,
 	partial: AssistantMessage,
@@ -150,14 +161,16 @@ function emitBridgeToolUseTurn(
 ): void {
 	for (const request of requests) {
 		const contentIndex = partial.content.length;
+		const args = toToolCallArguments(request.args);
 		partial.content.push({
 			type: "toolCall",
 			id: request.piToolCallId,
 			name: request.piToolName,
-			arguments: request.args,
+			arguments: args ?? {},
+			...(args ? {} : { argumentsError: "Droid bridge tool arguments were not a JSON object" }),
 		});
 		stream.push({ type: "toolcall_start", contentIndex, partial });
-		stream.push({ type: "toolcall_delta", contentIndex, delta: JSON.stringify(request.args), partial });
+		stream.push({ type: "toolcall_delta", contentIndex, delta: JSON.stringify(args ?? {}), partial });
 		const block = partial.content[contentIndex];
 		if (block.type === "toolCall") {
 			stream.push({ type: "toolcall_end", contentIndex, toolCall: block, partial });
@@ -258,23 +271,39 @@ function processStreamEvent(
 	return "continue";
 }
 
+async function emitProviderStreamEvent(
+	message: DroidStreamMessage,
+	model: Model<Api>,
+	options?: SimpleStreamOptions,
+): Promise<void> {
+	const handler = options?.onProviderStreamEvent;
+	if (!handler) return;
+	try {
+		await handler(message, model);
+	} catch {
+		// pi documents these observation hooks as non-blocking: a failing debug handler must
+		// not break the provider stream, and the extension has no error channel to report to.
+	}
+}
+
 async function pumpLiveRun(
 	stream: AssistantMessageEventStream,
 	partial: AssistantMessage,
 	model: Model<Api>,
-	context: Context,
+	context: TranscriptContext,
 	run: DroidLiveRun,
 	promptInputTokens: number,
-	signal?: AbortSignal,
+	options?: SimpleStreamOptions,
 ): Promise<"toolUse" | "stop" | "pending"> {
 	if (!run.iterator) return "stop";
 	const state = createTurnEmitState();
 
 	while (true) {
-		if (signal?.aborted) throw new DroidAbortError();
+		if (options?.signal?.aborted) throw new DroidAbortError();
 		const next = await run.iterator.next();
 		if (next.done) break;
 
+		await emitProviderStreamEvent(next.value, model, options);
 		const status = processStreamEvent(stream, partial, run, state, next.value);
 		if (status === "done") {
 			if (state.thinkingContentIndex >= 0) {
@@ -319,8 +348,8 @@ async function resumePendingLiveRun(
 	stream: AssistantMessageEventStream,
 	partial: AssistantMessage,
 	model: Model<Api>,
-	context: Context,
-	signal?: AbortSignal,
+	context: TranscriptContext,
+	options?: SimpleStreamOptions,
 ): Promise<boolean> {
 	const run = getPendingLiveRun(context);
 	if (!run || run.disposed) return false;
@@ -332,7 +361,7 @@ async function resumePendingLiveRun(
 	run.waitingForBridge = false;
 
 	const promptInputTokens = estimateDroidPromptInputTokens(buildDroidPrompt(context));
-	await pumpLiveRun(stream, partial, model, context, run, promptInputTokens, signal);
+	await pumpLiveRun(stream, partial, model, context, run, promptInputTokens, options);
 	return true;
 }
 
@@ -349,9 +378,12 @@ function toDroidImages(images: Array<{ data: string; mimeType: string }>) {
 
 export function streamDroid(
 	model: Model<Api>,
-	context: Context,
+	context: TranscriptContext,
 	options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
+	// The Droid SDK owns its own process and transport, so there is no HTTP request payload or
+	// response object for options.onPayload / options.onResponse to observe. Provider stream
+	// events are forwarded through options.onProviderStreamEvent instead.
 	const stream = createAssistantMessageEventStream();
 
 	(async () => {
@@ -367,7 +399,7 @@ export function streamDroid(
 			stream.push({ type: "start", partial });
 			throwIfAborted();
 
-			if (await resumePendingLiveRun(stream, partial, model, context, options?.signal)) {
+			if (await resumePendingLiveRun(stream, partial, model, context, options)) {
 				stream.end();
 				return;
 			}
@@ -423,16 +455,19 @@ export function streamDroid(
 			});
 			liveRun.iterator = generator[Symbol.asyncIterator]();
 
-			await pumpLiveRun(stream, partial, model, context, liveRun, promptInputTokens, options?.signal);
+			await pumpLiveRun(stream, partial, model, context, liveRun, promptInputTokens, options);
 		} catch (error) {
 			if (liveRun) await disposeLiveRun(liveRun);
 			else await bridgeRun?.dispose();
 
+			const message = error instanceof Error ? error.message : String(error);
 			if (error instanceof DroidAbortError) {
 				partial.stopReason = "aborted";
+				partial.errorMessage = message;
 				stream.push({ type: "error", reason: "aborted", error: partial });
 			} else {
 				partial.stopReason = "error";
+				partial.errorMessage = message;
 				stream.push({ type: "error", reason: "error", error: partial });
 			}
 		} finally {

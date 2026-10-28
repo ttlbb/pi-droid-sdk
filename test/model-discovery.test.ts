@@ -98,4 +98,17 @@ describe("mapPiThinkingToReasoningEffort", () => {
 	it("returns metadata for discovered models", () => {
 		expect(getDroidModelMetadata("kimi-k2.5")?.displayName).toContain("Kimi");
 	});
+
+	it("maps the pi max level to Droid Max", () => {
+		const map = getDroidModelMetadata("claude-opus-4-7")?.thinkingLevelMap;
+		expect(map?.max).toBe(ReasoningEffort.Max);
+		expect(map?.xhigh).toBe(ReasoningEffort.Max);
+		expect(mapPiThinkingToReasoningEffort("claude-opus-4-7", "max")).toBe(ReasoningEffort.Max);
+	});
+
+	it("reports max as unsupported when the model tops out at ExtraHigh", () => {
+		const map = getDroidModelMetadata("gpt-5.5")?.thinkingLevelMap;
+		expect(map?.xhigh).toBe(ReasoningEffort.ExtraHigh);
+		expect(map?.max).toBeNull();
+	});
 });

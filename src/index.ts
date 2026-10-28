@@ -23,6 +23,9 @@ function createDroidProviderConfig(models: ProviderModelConfig[]): ProviderConfi
 	return {
 		name: "Factory",
 		baseUrl: "https://factory.ai",
+		// pi 1.x treats this as a literal key for custom APIs. The extension resolves the real
+		// value (cli --api-key, stored /login credential, FACTORY_API_KEY) inside streamDroid,
+		// so the literal is never sent anywhere.
 		apiKey: "FACTORY_API_KEY",
 		api: "droid-sdk",
 		models,
