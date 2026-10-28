@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { normalizeContext, type Api, type AssistantMessageEventStream, type Model } from "@earendil-works/pi-ai";
 import { DroidMessageType, createSession } from "@factory/droid-sdk";
 import { streamDroid, __testUtils as providerTestUtils } from "../src/droid-provider.js";
@@ -108,8 +111,12 @@ describe("streamDroid", () => {
 	});
 
 	it("fails fast without a Factory key", async () => {
-		const previous = process.env.FACTORY_API_KEY;
+		const previousKey = process.env.FACTORY_API_KEY;
+		const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+		// An empty agent dir keeps a real stored credential out of the provider's key lookup.
+		const emptyAgentDir = mkdtempSync(join(tmpdir(), "pi-droid-provider-"));
 		delete process.env.FACTORY_API_KEY;
+		process.env.PI_CODING_AGENT_DIR = emptyAgentDir;
 		try {
 			const events = await collect(streamDroid(model, contextFor("ping")));
 			const terminal = events.at(-1) as { type: string; error?: { errorMessage?: string } };
@@ -117,7 +124,10 @@ describe("streamDroid", () => {
 			expect(terminal.error?.errorMessage).toContain("Factory API key required");
 			expect(mockedCreateSession).not.toHaveBeenCalled();
 		} finally {
-			if (previous !== undefined) process.env.FACTORY_API_KEY = previous;
+			rmSync(emptyAgentDir, { recursive: true, force: true });
+			if (previousKey !== undefined) process.env.FACTORY_API_KEY = previousKey;
+			if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+			else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
 		}
 	});
 });

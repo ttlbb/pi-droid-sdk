@@ -83,8 +83,25 @@ describe("discoverModels", () => {
 });
 
 describe("mapPiThinkingToReasoningEffort", () => {
+	const originalEnv = process.env;
+	let tmpAgentDir: string;
+
 	beforeEach(async () => {
+		process.env = { ...originalEnv };
+		delete process.env.FACTORY_API_KEY;
+		tmpAgentDir = mkdtempSync(join(tmpdir(), "pi-droid-reasoning-"));
+		process.env.PI_CODING_AGENT_DIR = tmpAgentDir;
+		process.argv = ["node", "vitest"];
+		__testUtils.clearMetadata();
+		// No stored or environment key here, so discovery registers the bundled fallback
+		// catalog; these assertions cover that catalog and must not read the user's auth.
 		await discoverModels();
+	});
+
+	afterEach(() => {
+		rmSync(tmpAgentDir, { recursive: true, force: true });
+		process.env = originalEnv;
+		vi.clearAllMocks();
 	});
 
 	it("maps off to ReasoningEffort.Off for core models", () => {
