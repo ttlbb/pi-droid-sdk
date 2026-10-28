@@ -83,20 +83,29 @@ pi 的档位按每个模型的映射转换成 Droid 的 reasoning effort：
 
 ### `/droid-usage`
 
-显示**当前 pi 会话**内 Factory Droid 的 token 用量。
+显示**当前 pi 会话**内 Factory Droid 的 token 用量，以及 Factory 账户 5 小时 / 7 天 / 1 个月的额度消耗与恢复时间。
 
 ```text
 Factory Droid usage — 3 turns since 21:02
-model                               turns      input     output    cache R    cache W   thinking
-claude-sonnet-4-5                       2      1,204        356     12,000      1,500        120
-gpt-5.5                                 1        800        120          0          0         40
-total                                   3      2,004        476     12,000      1,500        160
+model                               turns      input     output    cache R    cache W   thinking        total
+claude-sonnet-4-5                       2      1,204        356     12,000      1,500        120       15,180
+gpt-5.5                                 1        800        120          0          0         40          960
+total                                   3      2,004        476     12,000      1,500        160       16,140
+total tokens: 16,140 · cache hit 82.8%
 last turn: gpt-5.5 at 21:14
+
+Factory limits
+  standard 5h        4.0% used · resets in 3h 16m
+  standard 7d        0.0% used · no active window
+  standard 1m       58.0% used · resets on Nov 5 (in 7d 22h)
 ```
 
 - 数据来源是 Droid 每轮结束时的 `tokenUsage` 报告；**只统计已完成轮次**，被中断的轮次不计。
-- 每个模型一行，最后一行是合计；`cache R` / `cache W` 分别是缓存读取与缓存写入。
-- TUI 中报表以 widget 形式显示在编辑器上方，同时弹出一行摘要；无 UI 时只弹摘要。
+- 每个模型一行，最后一行是合计；`cache R` / `cache W` 分别是缓存读取与缓存写入，`total` = input + output + cache R + cache W。
+- `cache hit` = cache R ÷（input + cache R + cache W），与 Droid statusline 的口径一致；没有 prompt token 时显示 `n/a`。
+- 额度块来自 Factory 计费接口 `GET https://api.factory.ai/api/billing/limits`，用的是与模型发现相同的 Factory API key。`5h` / `7d` / `1m` 为已用百分比；`resets in 3h 16m`（24 小时内）或 `resets on Nov 5 (in 7d 22h)`（更远），没有活动窗口时显示 `no active window`。三个窗口都为空额度的池（通常是 `core`）整块省略。
+- 额度查询失败不影响 token 报表：报表里会显示 `Factory limits: unavailable (HTTP 401)` 之类的原因（无 key 时为 `no Factory API key configured`）。
+- TUI 中报表以 widget 形式显示在编辑器上方，同时弹出一行摘要（含总 token、缓存命中率与三档百分比）；无 UI 时只弹摘要。
 - 计数器在每次 pi `session_start`（新建、恢复、重载、fork）时清零。
 
 ## 工具桥（pi 工具 → Droid）
@@ -154,7 +163,7 @@ last turn: gpt-5.5 at 21:14
 
 ## 已知限制
 
-- `/droid-usage` 只统计本 pi 会话内已完成的轮次，不读取 Droid 历史会话，也不包含 Factory 账户额度（5 小时/每周限额）。
+- `/droid-usage` 只统计本 pi 会话内已完成的轮次，不读取 Droid 历史会话；额度块是账户级数据，来自 Factory 计费接口，与本地统计无关。
 - fallback 模型目录是仓库内维护的快照（`src/droid-fallback-models.generated.ts`），需要按 https://docs.factory.ai/models 手工更新。
 - 各模型的上下文长度来自 `src/droid-context-windows.generated.ts`（Factory 只通过 `getContextStats()` 逐模型返回，`availableModels` 里没有）。表里没有的新模型会在发现时实测一次；实测失败则按 131K 保守值处理并在启动时提示。整表刷新：`npm run refresh:droid-context-windows`（需要 Factory key 与 PATH 上的 `droid`）。
 - 输出上限（`maxTokens`）仍是固定 16.4K，SDK 未提供逐模型来源。

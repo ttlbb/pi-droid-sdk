@@ -66,7 +66,11 @@ Core models like `kimi-k2.5` typically support `off` and `high`. Models whose to
 /droid-usage
 ```
 
-Shows Factory Droid token usage accumulated in the current pi session: per-model turns plus input, output, cache-read, cache-write, and thinking tokens, with a total row. Usage is counted from Droid's own turn-complete token reports, so it covers only turns that finished; interrupted turns are not counted and the counters reset on the next `session_start`.
+Shows Factory Droid token usage accumulated in the current pi session: per-model turns plus input, output, cache-read, cache-write, thinking, and total tokens, with a total row, the session's total token count and cache-hit rate, and the plan's 5-hour, 7-day, and 1-month consumption with each window's reset time.
+
+Session usage is counted from Droid's own turn-complete token reports, so it covers only turns that finished; interrupted turns are not counted and the counters reset on the next `session_start`. `total` is input + output + cache reads + cache writes, and the cache-hit rate is cache reads over the whole prompt (uncached + cache reads + cache writes), the same ratio the Droid statusline shows.
+
+Plan limits come from Factory's own billing endpoint (`GET https://api.factory.ai/api/billing/limits`) using the same Factory API key resolution as model discovery. The report lists each quota pool that has an active window; when the lookup fails, the token report still renders and the limits line says why (for example `HTTP 401` or `no Factory API key configured`).
 
 ## Pi tool bridge
 
