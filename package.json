@@ -16,7 +16,6 @@
 	],
 	"files": [
 		"src",
-		"scripts/refresh-droid-model-snapshots.mjs",
 		"README.md",
 		"LICENSE",
 		"CHANGELOG.md"
@@ -28,8 +27,7 @@
 	"scripts": {
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
-		"test:watch": "vitest",
-		"refresh:droid-snapshots": "node scripts/refresh-droid-model-snapshots.mjs"
+		"test:watch": "vitest"
 	},
 	"dependencies": {
 		"@factory/droid-sdk": "^0.2.0",

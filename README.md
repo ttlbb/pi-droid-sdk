@@ -28,7 +28,8 @@ curl -fsSL https://app.factory.ai/cli | sh
 
 ```bash
 export FACTORY_API_KEY=your-key
-# or: pi --login  (Use an API key -> Factory)
+# or: run /login inside pi and pick "Use an API key -> Factory"
+# or: pi --api-key your-key --model factory/kimi-k2.5
 ```
 
 4. Pick a model:
@@ -69,17 +70,22 @@ Shows Factory Droid token usage accumulated in the current pi session: per-model
 
 Like `pi-cursor-sdk`, active pi tools are exposed to Droid via `createSdkMcpServer` under `pi__*` MCP names. Bridged calls execute through normal pi tool flow.
 
-Env:
-
-- `PI_DROID_PI_TOOL_BRIDGE=0` — disable bridge
-- `PI_DROID_EXPOSE_BUILTIN_TOOLS=1` — expose overlapping builtins (`read`, `bash`, etc.)
-
 ## Permissions & questions
 
 - Droid native tool confirmations use `permissionHandler` (default autonomy: `high` via `PI_DROID_AUTONOMY_LEVEL`)
 - Bridge MCP tools auto-proceed
 - Droid ask-user flows route to pi UI via `askUserHandler`
 - `droid_ask_question` pi tool is registered when a Factory model is active
+
+## Environment variables
+
+| Variable | Default | Effect |
+|---|---|---|
+| `FACTORY_API_KEY` | unset | Factory API key; checked after `--api-key` and stored `/login` credentials |
+| `PI_DROID_PI_TOOL_BRIDGE` | enabled | `0`/`false`/`off` disables the `pi__*` tool bridge |
+| `PI_DROID_EXPOSE_BUILTIN_TOOLS` | disabled | `1`/`true`/`on` also exposes overlapping builtins (`read`, `bash`, `write`, `edit`, `grep`, `find`, `ls`) |
+| `PI_DROID_AUTONOMY_LEVEL` | `high` | Droid native tool autonomy: `off`, `low`, `medium`, `high` (`off` cancels every non-bridged confirmation) |
+| `PI_CODING_AGENT_DIR` | `~/.pi/agent` | pi config dir; `auth.json` here supplies stored Factory credentials |
 
 ## Requirements
 

@@ -110,7 +110,7 @@ function getLatestUserMessageIndex(messages: Message[]): number {
 	return -1;
 }
 
-export function buildDroidPrompt(context: TranscriptContext, options: DroidPromptOptions = {}): DroidPrompt {
+export function buildDroidPrompt(context: TranscriptContext): DroidPrompt {
 	const images = extractLatestImages(context.messages);
 	const sections: string[] = [];
 

@@ -282,7 +282,12 @@ class DroidPiToolBridgeRegistry implements DroidPiToolBridge {
 	}
 
 	async disposeAll(reason = "dispose all"): Promise<void> {
-		await Promise.all([...this.runs].map((run) => run.dispose()));
+		await Promise.all(
+			[...this.runs].map(async (run) => {
+				run.cancel(reason);
+				await run.dispose();
+			}),
+		);
 		this.runs.clear();
 	}
 }

@@ -195,10 +195,6 @@ export function getDroidModelMetadata(modelId: string): DroidModelMetadata | und
 	return metadataByPiModelId.get(modelId);
 }
 
-export function getDroidModelMetadataEntries(): DroidModelMetadata[] {
-	return [...metadataByPiModelId.values()];
-}
-
 export function mapPiThinkingToReasoningEffort(modelId: string, level: ModelThinkingLevel): ReasoningEffort {
 	const metadata = getDroidModelMetadata(modelId);
 	if (!metadata?.thinkingLevelMap) return ReasoningEffort.Off;
