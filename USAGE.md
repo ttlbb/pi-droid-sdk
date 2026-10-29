@@ -57,6 +57,23 @@ pi 内用 `/model` 搜索 `factory/` 前缀即可看到全部模型，包括 Ant
 /droid-refresh-models
 ```
 
+### 只看收藏模型
+
+Droid 的 session init 永远返回完整目录，`availableModels` 里也没有收藏标记，所以无法“只获取”收藏模型。可以做到的是**只显示**收藏：Droid TUI 的收藏保存在 `~/.factory/settings.json` 的 `modelFavorites`（模型 id 列表）。
+
+```text
+/droid-refresh-models --favorites   # 只保留 Droid 收藏（本会话生效）
+/droid-refresh-models --all         # 恢复完整目录
+```
+
+希望每个 pi 会话启动即只显示收藏：
+
+```bash
+export PI_DROID_MODEL_SCOPE=favorites
+```
+
+收窄只影响模型选择器：整份目录的思考档位与上下文窗口元数据仍会注册，正在运行的隐藏模型不受影响，且隐藏模型不再触发上下文窗口探测。若 `modelFavorites` 读不到、为空，或收藏全都不在最新目录里，会自动回退到完整目录并给出提示。
+
 ## 思考档位
 
 pi 的档位按每个模型的映射转换成 Droid 的 reasoning effort：
@@ -80,6 +97,10 @@ pi 的档位按每个模型的映射转换成 Droid 的 reasoning effort：
 ### `/droid-refresh-models`
 
 重新执行模型发现并重新注册 `factory` provider。适用于：刚完成 `/login`、刚设置 `FACTORY_API_KEY`、Droid 升级后模型列表变化。
+
+- 无参数：沿用当前作用域（`PI_DROID_MODEL_SCOPE` 决定启动值，本会话内以最后一次刷新为准）
+- `--favorites`：只注册 Droid 收藏模型
+- `--all`：注册完整目录
 
 ### `/droid-usage`
 
@@ -147,6 +168,7 @@ Factory limits
 | `PI_DROID_PI_TOOL_BRIDGE` | 开启 | `0`/`false`/`off` 关闭 `pi__*` 工具桥 |
 | `PI_DROID_EXPOSE_BUILTIN_TOOLS` | 关闭 | `1`/`true`/`on` 额外暴露重叠的内置工具 |
 | `PI_DROID_AUTONOMY_LEVEL` | `high` | Droid 原生工具自治级别：`off`、`low`、`medium`、`high` |
+| `PI_DROID_MODEL_SCOPE` | `all` | `favorites` 只注册 Droid TUI 中收藏的模型（`~/.factory/settings.json` 的 `modelFavorites`）；`all` 注册完整目录 |
 | `PI_CODING_AGENT_DIR` | `~/.pi/agent` | pi 配置目录；其中的 `auth.json` 提供存储凭据 |
 
 ## 故障排查

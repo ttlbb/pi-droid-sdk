@@ -9,6 +9,13 @@ import {
 	getKnownDroidContextWindow,
 	resolveDroidContextWindows,
 } from "./droid-context-window.js";
+import {
+	applyDroidModelScope,
+	resolveDroidModelScope,
+	type DroidModelScope,
+	type DroidModelScopeInfo,
+	type DroidModelScopeResult,
+} from "./droid-model-scope.js";
 
 const FACTORY_PROVIDER_ID = "factory";
 const FACTORY_API_KEY_ENV_VAR = "FACTORY_API_KEY";
@@ -30,6 +37,12 @@ export interface DiscoverModelsOptions {
 	onFallback?: (issue: DroidModelFallbackIssue) => void;
 	/** Models whose context window is unknown, so they hold {@link DROID_DEFAULT_CONTEXT_WINDOW}. */
 	onUnknownContextWindow?: (modelIds: string[]) => void;
+	/** Catalog slice to register; defaults to `PI_DROID_MODEL_SCOPE` and then the full catalog. */
+	scope?: DroidModelScope;
+	/** What the scope did, so the caller can explain a narrowed picker or a fallback to `all`. */
+	onModelScope?: (info: DroidModelScopeInfo) => void;
+	/** Droid settings file holding `modelFavorites`; the user-level file by default. */
+	factorySettingsPath?: string;
 }
 
 export interface DroidModelMetadata {
@@ -170,12 +183,19 @@ function toProviderModelConfig(metadata: DroidModelMetadata): ProviderModelConfi
 	};
 }
 
-function registerMetadata(entries: DroidModelMetadata[]): ProviderModelConfig[] {
+function registerMetadata(
+	entries: DroidModelMetadata[],
+	visiblePiModelIds?: ReadonlySet<string>,
+): ProviderModelConfig[] {
 	metadataByPiModelId.clear();
 	const models: ProviderModelConfig[] = [];
 	for (const entry of entries) {
+		// Metadata covers the whole catalog even when the picker shows a slice: a session already
+		// running a hidden model still needs its reasoning and context-window metadata.
 		metadataByPiModelId.set(entry.piModelId, entry);
-		models.push(toProviderModelConfig(entry));
+		if (!visiblePiModelIds || visiblePiModelIds.has(entry.piModelId)) {
+			models.push(toProviderModelConfig(entry));
+		}
 	}
 	models.sort((a, b) => a.name.localeCompare(b.name));
 	return models;
@@ -246,11 +266,27 @@ function discoveryFailedIssue(error: unknown): DroidModelFallbackIssue {
 	};
 }
 
+function reportModelScope<T>(result: DroidModelScopeResult<T>, options: DiscoverModelsOptions): void {
+	const { items: _items, ...info } = result;
+	options.onModelScope?.(info);
+}
+
+function fallbackRegistration(options: DiscoverModelsOptions, scope: DroidModelScope): ProviderModelConfig[] {
+	const entries = fallbackMetadataFromSnapshot();
+	const scoped = applyDroidModelScope(entries, scope, {
+		keysOf: (entry) => [entry.piModelId, entry.baseModelId],
+		...(options.factorySettingsPath ? { settingsPath: options.factorySettingsPath } : {}),
+	});
+	reportModelScope(scoped, options);
+	return registerMetadata(entries, new Set(scoped.items.map((entry) => entry.piModelId)));
+}
+
 export async function discoverModels(options: DiscoverModelsOptions = {}): Promise<ProviderModelConfig[]> {
+	const scope = options.scope ?? resolveDroidModelScope();
 	const apiKey = await getDiscoveryApiKey();
 	if (!apiKey) {
 		options.onFallback?.(missingApiKeyIssue());
-		return registerMetadata(fallbackMetadataFromSnapshot());
+		return fallbackRegistration(options, scope);
 	}
 
 	try {
@@ -271,25 +307,39 @@ export async function discoverModels(options: DiscoverModelsOptions = {}): Promi
 				reason: "empty-model-list",
 				message: `Factory returned an empty model list. Using bundled fallback models. ${CATALOG_REFRESH_HINT}`,
 			});
-			return registerMetadata(fallbackMetadataFromSnapshot());
+			return fallbackRegistration(options, scope);
 		}
 
-		const modelIds = available.map((item) => item.modelId ?? item.id);
-		const contextWindows = await resolveDroidContextWindows(modelIds, { apiKey });
+		const scoped = applyDroidModelScope(available, scope, {
+			keysOf: (item) => [item.id, item.modelId],
+			...(options.factorySettingsPath ? { settingsPath: options.factorySettingsPath } : {}),
+		});
+		reportModelScope(scoped, options);
+
+		const visiblePiModelIds = new Set(scoped.items.map((item) => item.modelId ?? item.id));
+		// Only visible models get a context-window probe; a hidden model keeps whatever window the
+		// snapshot or this process already knows instead of paying a session for a picker it is not in.
+		const contextWindows = await resolveDroidContextWindows(
+			available.map((item) => item.modelId ?? item.id).filter((modelId) => visiblePiModelIds.has(modelId)),
+			{ apiKey },
+		);
 		if (contextWindows.unknownModelIds.length > 0) {
 			options.onUnknownContextWindow?.(contextWindows.unknownModelIds);
 		}
 		return registerMetadata(
-			available.map((item) =>
-				toMetadata(
-					item,
-					contextWindows.windows.get(item.modelId ?? item.id) ?? DROID_DEFAULT_CONTEXT_WINDOW,
-				),
-			),
+			available.map((item) => {
+				const piModelId = item.modelId ?? item.id;
+				const contextWindow = contextWindows.windows.get(piModelId)
+					?? getKnownDroidContextWindow(piModelId)
+					?? getDroidModelMetadata(piModelId)?.contextWindow
+					?? DROID_DEFAULT_CONTEXT_WINDOW;
+				return toMetadata(item, contextWindow);
+			}),
+			visiblePiModelIds,
 		);
 	} catch (error) {
 		options.onFallback?.(discoveryFailedIssue(error));
-		return registerMetadata(fallbackMetadataFromSnapshot());
+		return fallbackRegistration(options, scope);
 	}
 }
 

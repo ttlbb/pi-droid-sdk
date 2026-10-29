@@ -50,6 +50,23 @@ Fallback models ship in-repo when auth or discovery fails. Refresh live catalog 
 /droid-refresh-models
 ```
 
+### Only your Droid favorites
+
+Droid's session init always returns the whole catalog and carries no favorite flag, so nothing can be fetched favorites-only. pi can still **show** only the models you favorited in the Droid TUI: those are the ids in `modelFavorites` in `~/.factory/settings.json`.
+
+```text
+/droid-refresh-models --favorites   # keep only Droid favorites (session-scoped)
+/droid-refresh-models --all         # restore the full catalog
+```
+
+To start every pi session on the favorites scope:
+
+```bash
+export PI_DROID_MODEL_SCOPE=favorites
+```
+
+A narrowed picker never hides a model from a turn that is already running: reasoning and context-window metadata stay registered for the whole catalog, and hidden models skip the context-window probe. The favorites scope falls back to the full catalog with a warning when `modelFavorites` is unreadable or empty, or when none of the favorites exist in the fresh catalog.
+
 ## Thinking / reasoning
 
 When Droid exposes reasoning effort for a model, pi's native thinking controls map through:
@@ -91,6 +108,7 @@ Like `pi-cursor-sdk`, active pi tools are exposed to Droid via `createSdkMcpServ
 | `PI_DROID_PI_TOOL_BRIDGE` | enabled | `0`/`false`/`off` disables the `pi__*` tool bridge |
 | `PI_DROID_EXPOSE_BUILTIN_TOOLS` | disabled | `1`/`true`/`on` also exposes overlapping builtins (`read`, `bash`, `write`, `edit`, `grep`, `find`, `ls`) |
 | `PI_DROID_AUTONOMY_LEVEL` | `high` | Droid native tool autonomy: `off`, `low`, `medium`, `high` (`off` cancels every non-bridged confirmation) |
+| `PI_DROID_MODEL_SCOPE` | `all` | `favorites` registers only the models favorited in the Droid TUI (`modelFavorites` in `~/.factory/settings.json`); `all` registers the full Factory catalog |
 | `PI_CODING_AGENT_DIR` | `~/.pi/agent` | pi config dir; `auth.json` here supplies stored Factory credentials |
 
 ## Requirements

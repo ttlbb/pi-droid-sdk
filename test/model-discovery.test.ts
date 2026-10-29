@@ -119,8 +119,7 @@ describe("discoverModels", () => {
 		expect(models[0]?.contextWindow).toBe(555_000);
 	});
 
-	it("reports live models it could not probe and keeps the conservative window", async () => {
-		writeStoredFactoryApiKey("factory-test-key");
+	it("reports live models it could not probe and keeps the conservative window", async () => {		writeStoredFactoryApiKey("factory-test-key");
 		const unknownModelIds: string[][] = [];
 		mockedCreateSession
 			.mockResolvedValueOnce({
@@ -146,6 +145,84 @@ describe("discoverModels", () => {
 		});
 		expect(models[0]?.contextWindow).toBe(DROID_DEFAULT_CONTEXT_WINDOW);
 		expect(unknownModelIds).toEqual([["unprobeable-model"]]);
+	});
+
+	describe("model scope", () => {
+		function writeDroidSettings(favorites: string[]): string {
+			const path = join(mkdtempSync(join(tmpdir(), "pi-droid-settings-")), "settings.json");
+			writeFileSync(path, JSON.stringify({ theme: "factory-dark", modelFavorites: favorites }));
+			return path;
+		}
+
+		function liveSession(items: Array<{ id: string; displayName: string }>): never {
+			return {
+				initResult: {
+					availableModels: items.map((item) => ({
+						...item,
+						shortDisplayName: item.displayName,
+						modelProvider: "factory",
+						supportedReasoningEfforts: [ReasoningEffort.Off, ReasoningEffort.High],
+						defaultReasoningEffort: ReasoningEffort.High,
+						isCustom: false,
+					})),
+				},
+				close: vi.fn(async () => {}),
+			} as never;
+		}
+
+		it("registers only the Droid favorites and keeps the other models' metadata", async () => {
+			writeStoredFactoryApiKey("factory-test-key");
+			mockedCreateSession.mockResolvedValue(
+				liveSession([
+					{ id: "kimi-k2.5", displayName: "Kimi K2.5" },
+					{ id: "hidden-new-model", displayName: "Hidden" },
+				]),
+			);
+			const scopes: unknown[] = [];
+
+			const models = await discoverModels({
+				scope: "favorites",
+				factorySettingsPath: writeDroidSettings(["kimi-k2.5"]),
+				onModelScope: (info) => scopes.push(info),
+			});
+
+			expect(models.map((model) => model.id)).toEqual(["kimi-k2.5"]);
+			expect(scopes).toEqual([
+				expect.objectContaining({ requestedScope: "favorites", appliedScope: "favorites", catalogCount: 2, modelCount: 1 }),
+			]);
+			// The hidden model stays usable for a session already running it.
+			expect(getDroidModelMetadata("hidden-new-model")?.contextWindow).toBe(DROID_DEFAULT_CONTEXT_WINDOW);
+			// Only session init ran: the hidden model was never probed.
+			expect(mockedCreateSession).toHaveBeenCalledTimes(1);
+		});
+
+		it("falls back to the full catalog when no favorite is in the catalog", async () => {
+			writeStoredFactoryApiKey("factory-test-key");
+			mockedCreateSession.mockResolvedValue(
+				liveSession([
+					{ id: "kimi-k2.5", displayName: "Kimi K2.5" },
+					{ id: "claude-opus-5-5", displayName: "Opus 5.5" },
+				]),
+			);
+			const scopes: Array<{ fallbackReason?: string }> = [];
+
+			const models = await discoverModels({
+				scope: "favorites",
+				factorySettingsPath: writeDroidSettings(["retired-model"]),
+				onModelScope: (info) => scopes.push(info),
+			});
+
+			expect(models.map((model) => model.id).sort()).toEqual(["claude-opus-5-5", "kimi-k2.5"]);
+			expect(scopes[0]).toMatchObject({ appliedScope: "all", fallbackReason: "favorites-not-in-catalog" });
+		});
+
+		it("applies the scope to the bundled fallback catalog too", async () => {
+			const models = await discoverModels({
+				scope: "favorites",
+				factorySettingsPath: writeDroidSettings(["kimi-k2.5"]),
+			});
+			expect(models.map((model) => model.id)).toEqual(["kimi-k2.5"]);
+		});
 	});
 });
 
